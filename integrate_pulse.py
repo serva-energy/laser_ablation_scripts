@@ -106,7 +106,6 @@ class LaserAblationData():
 
         return baseline_boundaries_indices, pulse_boundaries_indices
     
-
     @staticmethod
     def shrink_range(boundary_indices, ratio):
         # Ensure the input is a 2-element array
@@ -121,10 +120,20 @@ class LaserAblationData():
         
         return np.array([int(new_start), int(new_end)])
 
+    def calculate_heights(self):
+        baseline_boundaries_indices, pulse_boundaries_indices = self.find_pulse_boundaries()
+
+        print (f"{self.name}")
+        for isotope, y_data in self.isotopes.items():
+            val = np.mean(y_data[pulse_boundaries_indices])
+            base = np.mean(y_data[baseline_boundaries_indices])
+            val -= base
+            print (f"{isotope} {val:.1f}")
+        print()
 
 def __debug_plots():    
     # a = LaserAblationData("20240510_Montero_Bullet-Glass_01_1.csv")
-    a = LaserAblationData("./20240531BulletGlassOriginals/20240531_Montero_Bullet_Glass_04_30.csv")
+    a = LaserAblationData("./20240531BulletGlassOriginals/20240531_Montero_Bullet_Glass_04_45.csv")
     
     app = pg.mkQApp()
     a.plot()
@@ -132,8 +141,13 @@ def __debug_plots():
 
 def __debug_loading():
     for name in glob.glob(os.path.join('./20240531BulletGlassOriginals', '*.csv')):
-        LaserAblationData(name)
+        a = LaserAblationData(name)
+
+def __debug_calculate():
+    a = LaserAblationData("20240510_Montero_Bullet-Glass_01_1.csv")
+    a.calculate_heights()
 
 if __name__ == "__main__":
-    __debug_plots()
+    # __debug_plots()
     # __debug_loading()
+    __debug_calculate()
