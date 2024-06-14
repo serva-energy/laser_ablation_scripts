@@ -5,6 +5,8 @@ import pyqtgraph as pg
 import os
 import glob
 
+from scipy.signal import find_peaks
+
 class LaserAblationData():
     def __init__(self, filename=None) -> None:
         self.name = None
@@ -55,12 +57,36 @@ class LaserAblationData():
 
     def plot(self):
         for iso in self.isotopes.keys():
-            pw = pg.plot(x=self.timestamps, y=self.isotopes[iso], symbol='o', pen='b')
+            x_data = self.timestamps
+            y_data = self.isotopes[iso]
+            baseline_boundaries_indices, pulse_boundaries_indices = self.find_pulse_boundaries(iso)
+            baseline_boundaries = tuple(self.timestamps[baseline_boundaries_indices])
+            pulse_boundaries = tuple(self.timestamps[pulse_boundaries_indices])
+
+            pw = pg.plot(x=x_data, y=y_data, symbol='o', pen='b')            
+            pw.addItem(pg.LinearRegionItem(values=baseline_boundaries, brush='#00ff0040', movable=False))
+            pw.addItem(pg.LinearRegionItem(values=pulse_boundaries, brush='#0000ff40', movable=False))
+
             pw.setWindowTitle(iso)
+
+    def find_pulse_boundaries(self, isotope):
+        x_data = self.timestamps        
+        y_data = self.isotopes[isotope]
+
+        # find the pulse
+        peaks, props = find_peaks(y_data, prominence=0.8*y_data.max())
+
+        assert len(peaks) == 1
+
+        baseline_boundaries_indices = np.array([0, props['left_bases'][0]])
+        pulse_boundaries_indices = np.array([props['left_bases'][0], props['right_bases'][0]])
+
+        return baseline_boundaries_indices, pulse_boundaries_indices
 
 
 def __debug_plots():    
-    a = LaserAblationData("20240510_Montero_Bullet-Glass_01_1.csv")
+    # a = LaserAblationData("20240510_Montero_Bullet-Glass_01_1.csv")
+    a = LaserAblationData("./20240531BulletGlassOriginals/20240531_Montero_Bullet_Glass_04_10.csv")
     
     app = pg.mkQApp()
     a.plot()
