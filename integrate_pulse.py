@@ -56,32 +56,67 @@ class LaserAblationData():
             self.isotopes[col] = df[col].to_numpy(dtype='f8')
 
     def plot(self):
+
+        baseline_boundaries_indices, pulse_boundaries_indices = self.find_pulse_boundaries()            
+        baseline_boundaries = tuple(self.timestamps[baseline_boundaries_indices])
+        pulse_boundaries = tuple(self.timestamps[pulse_boundaries_indices])
+
         for iso in self.isotopes.keys():
             x_data = self.timestamps
             y_data = self.isotopes[iso]
-            baseline_boundaries_indices, pulse_boundaries_indices = self.find_pulse_boundaries(iso)
-            baseline_boundaries = tuple(self.timestamps[baseline_boundaries_indices])
-            pulse_boundaries = tuple(self.timestamps[pulse_boundaries_indices])
 
             pw = pg.plot(x=x_data, y=y_data, symbol='o', pen='b')            
             pw.addItem(pg.LinearRegionItem(values=baseline_boundaries, brush='#00ff0040', movable=False))
             pw.addItem(pg.LinearRegionItem(values=pulse_boundaries, brush='#0000ff40', movable=False))
 
             pw.setWindowTitle(iso)
+            pw.showMaximized()
 
-    def find_pulse_boundaries(self, isotope):
-        x_data = self.timestamps        
-        y_data = self.isotopes[isotope]
+    def find_pulse_boundaries(self):
+        baseline_boundaries_indices = []
+        pulse_boundaries_indices = []
+        for isotope in self.isotopes.keys():
+            y_data = self.isotopes[isotope]
 
-        # find the pulse
-        peaks, props = find_peaks(y_data, prominence=0.8*y_data.max())
+            # find pulse
+            peaks, props = find_peaks(y_data, prominence=0.8*y_data.max())
+            assert len(peaks) == 1
+            
+            baseline_boundaries_indices.append(np.array([0, props['left_bases'][0]]))
+            pulse_boundaries_indices.append(np.array([props['left_bases'][0], props['right_bases'][0]]))
+            
 
-        assert len(peaks) == 1
+            # find the pulse using smoothed 1st derivative
+            y_diff = np.diff(np.convolve(y_data, np.ones(11) / 11, mode='same'))            
+            baseline_boundaries_indices.append(np.array([0, np.argmax(y_diff)]))
+            pulse_boundaries_indices.append(np.array([np.argmax(y_diff), np.argmin(y_diff)]))
 
-        baseline_boundaries_indices = np.array([0, props['left_bases'][0]])
-        pulse_boundaries_indices = np.array([props['left_bases'][0], props['right_bases'][0]])
+
+        baseline_boundaries_indices = np.array(baseline_boundaries_indices)
+        pulse_boundaries_indices = np.array(pulse_boundaries_indices)
+
+        baseline_boundaries_indices = np.mean(baseline_boundaries_indices, axis=0)
+        pulse_boundaries_indices = np.mean(pulse_boundaries_indices, axis=0)
+
+        baseline_boundaries_indices = self.shrink_range (baseline_boundaries_indices, 0.1)
+        pulse_boundaries_indices = self.shrink_range(pulse_boundaries_indices, 0.15)
 
         return baseline_boundaries_indices, pulse_boundaries_indices
+    
+
+    @staticmethod
+    def shrink_range(boundary_indices, ratio):
+        # Ensure the input is a 2-element array
+        assert len(boundary_indices) == 2, "Input must be a 2-element array"
+        
+        start, end = boundary_indices
+        length = end - start
+        shrink_amount = length * ratio
+        
+        new_start = start + shrink_amount / 2
+        new_end = end - shrink_amount / 2
+        
+        return np.array([int(new_start), int(new_end)])
 
 
 def __debug_plots():    
