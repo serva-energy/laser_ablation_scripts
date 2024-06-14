@@ -2,6 +2,9 @@ import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 
+import os
+import glob
+
 class LaserAblationData():
     def __init__(self, filename=None) -> None:
         self.name = None
@@ -50,6 +53,23 @@ class LaserAblationData():
         for col in df.columns[1:]:
             self.isotopes[col] = df[col].to_numpy(dtype='f8')
 
+    def plot(self):
+        for iso in self.isotopes.keys():
+            pw = pg.plot(x=self.timestamps, y=self.isotopes[iso], symbol='o', pen='b')
+            pw.setWindowTitle(iso)
+
+
+def __debug_plots():    
+    a = LaserAblationData("20240510_Montero_Bullet-Glass_01_1.csv")
+    
+    app = pg.mkQApp()
+    a.plot()
+    app.exec()
+
+def __debug_loading():
+    for name in glob.glob(os.path.join('./20240531BulletGlassOriginals', '*.csv')):
+        LaserAblationData(name)
 
 if __name__ == "__main__":
-    a = LaserAblationData("20240510_Montero_Bullet-Glass_01_1.csv")
+    __debug_plots()
+    # __debug_loading()
