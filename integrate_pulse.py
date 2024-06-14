@@ -8,6 +8,10 @@ import glob
 from scipy.signal import find_peaks
 
 class LaserAblationData():
+
+    baseline_shrink_factor = 0.1
+    pulse_shrink_factor = 0.3
+
     def __init__(self, filename=None) -> None:
         self.name = None
         self.file_timestamp = None
@@ -80,14 +84,13 @@ class LaserAblationData():
 
             # find pulse
             peaks, props = find_peaks(y_data, prominence=0.8*y_data.max())
-            assert len(peaks) == 1
-            
-            baseline_boundaries_indices.append(np.array([0, props['left_bases'][0]]))
-            pulse_boundaries_indices.append(np.array([props['left_bases'][0], props['right_bases'][0]]))
+            if len(peaks) == 1:            
+                baseline_boundaries_indices.append(np.array([0, props['left_bases'][0]]))
+                pulse_boundaries_indices.append(np.array([props['left_bases'][0], props['right_bases'][0]]))
             
 
             # find the pulse using smoothed 1st derivative
-            y_diff = np.diff(np.convolve(y_data, np.ones(11) / 11, mode='same'))            
+            y_diff = np.diff(np.convolve(y_data, np.ones(21) / 21, mode='same'))            
             baseline_boundaries_indices.append(np.array([0, np.argmax(y_diff)]))
             pulse_boundaries_indices.append(np.array([np.argmax(y_diff), np.argmin(y_diff)]))
 
@@ -98,8 +101,8 @@ class LaserAblationData():
         baseline_boundaries_indices = np.mean(baseline_boundaries_indices, axis=0)
         pulse_boundaries_indices = np.mean(pulse_boundaries_indices, axis=0)
 
-        baseline_boundaries_indices = self.shrink_range (baseline_boundaries_indices, 0.1)
-        pulse_boundaries_indices = self.shrink_range(pulse_boundaries_indices, 0.15)
+        baseline_boundaries_indices = self.shrink_range (baseline_boundaries_indices, self.baseline_shrink_factor)
+        pulse_boundaries_indices = self.shrink_range(pulse_boundaries_indices, self.pulse_shrink_factor)
 
         return baseline_boundaries_indices, pulse_boundaries_indices
     
@@ -121,7 +124,7 @@ class LaserAblationData():
 
 def __debug_plots():    
     # a = LaserAblationData("20240510_Montero_Bullet-Glass_01_1.csv")
-    a = LaserAblationData("./20240531BulletGlassOriginals/20240531_Montero_Bullet_Glass_04_10.csv")
+    a = LaserAblationData("./20240531BulletGlassOriginals/20240531_Montero_Bullet_Glass_04_30.csv")
     
     app = pg.mkQApp()
     a.plot()
