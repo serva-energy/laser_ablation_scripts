@@ -1,11 +1,13 @@
 import numpy as np
 import pandas as pd
-import pyqtgraph as pg
 
 import os
 import glob
+import sys
 
 from scipy.signal import find_peaks
+
+import argparse
 
 class LaserAblationData():
 
@@ -18,7 +20,8 @@ class LaserAblationData():
 
         self.metadata = {}
         self.timestamps = None
-        self.isotopes = {}
+        self.isotope_pulse_raw_data = {}
+        self.isotope_heights = {}
 
         if filename:
             self.load_from_file(filename)
@@ -57,7 +60,7 @@ class LaserAblationData():
         # parse
         self.timestamps = df['Time'].to_numpy()
         for col in df.columns[1:]:
-            self.isotopes[col] = df[col].to_numpy(dtype='f8')
+            self.isotope_pulse_raw_data[col] = df[col].to_numpy(dtype='f8')
 
     def plot(self):
 
@@ -65,9 +68,9 @@ class LaserAblationData():
         baseline_boundaries = tuple(self.timestamps[baseline_boundaries_indices])
         pulse_boundaries = tuple(self.timestamps[pulse_boundaries_indices])
 
-        for iso in self.isotopes.keys():
+        for iso in self.isotope_pulse_raw_data.keys():
             x_data = self.timestamps
-            y_data = self.isotopes[iso]
+            y_data = self.isotope_pulse_raw_data[iso]
 
             pw = pg.plot(x=x_data, y=y_data, symbol='o', pen='b')            
             pw.addItem(pg.LinearRegionItem(values=baseline_boundaries, brush='#00ff0040', movable=False))
@@ -79,8 +82,8 @@ class LaserAblationData():
     def find_pulse_boundaries(self):
         baseline_boundaries_indices = []
         pulse_boundaries_indices = []
-        for isotope in self.isotopes.keys():
-            y_data = self.isotopes[isotope]
+        for isotope in self.isotope_pulse_raw_data.keys():
+            y_data = self.isotope_pulse_raw_data[isotope]
 
             # find pulse
             peaks, props = find_peaks(y_data, prominence=0.8*y_data.max())
@@ -123,13 +126,12 @@ class LaserAblationData():
     def calculate_heights(self):
         baseline_boundaries_indices, pulse_boundaries_indices = self.find_pulse_boundaries()
 
-        print (f"{self.name}")
-        for isotope, y_data in self.isotopes.items():
+        for isotope, y_data in self.isotope_pulse_raw_data.items():
             val = np.mean(y_data[pulse_boundaries_indices])
             base = np.mean(y_data[baseline_boundaries_indices])
             val -= base
-            print (f"{isotope} {val:.1f}")
-        print()
+            self.isotope_heights[isotope] = val
+
 
 def __debug_plots():    
     # a = LaserAblationData("20240510_Montero_Bullet-Glass_01_1.csv")
@@ -147,7 +149,74 @@ def __debug_calculate():
     a = LaserAblationData("20240510_Montero_Bullet-Glass_01_1.csv")
     a.calculate_heights()
 
+def main():
+    parser = argparse.ArgumentParser(description='Process a file or directory of files.')
+    parser.add_argument('input', type=str, help='File name or path to a directory of files')
+    parser.add_argument('-o', '--output', type=str, default='results.xlsx', help='Output file name (default: results.xlsx)')
+
+    parser.add_argument('--baseline_shrink_factor', type=float, default=0.1, help='Baseline shrink factor (default: 0.1)')
+    parser.add_argument('--pulse_shrink_factor', type=float, default=0.3, help='Pulse shrink factor (default: 0.3)')
+    parser.add_argument('--plot', action='store_true', help='Visualize the output')
+
+    args = parser.parse_args()
+
+    results_df = None
+
+    if args.plot:
+        global pg
+        pg = None
+        try:
+            import pyqtgraph as pg
+        except ImportError:
+            print ("Please install `pyqtgraph` and `pyside6` modules to use the plot function.")
+            args.plot = False
+
+
+    # Check if input is a file or directory
+    if os.path.isfile(args.input):
+        results_df = process_file(args.input, args.baseline_shrink_factor, args.pulse_shrink_factor, args.plot)
+    elif os.path.isdir(args.input):
+        for filename in sorted(os.listdir(args.input)):
+            file_path = os.path.join(args.input, filename)
+            if os.path.isfile(file_path):
+                results_df = process_file(file_path, args.baseline_shrink_factor, args.pulse_shrink_factor, args.plot, results_df=results_df)
+    else:
+        print(f"Error: {args.input} is not a valid file or directory.")
+        sys.exit(1)
+
+    # Save results_df to output file based on the extension
+    _, file_extension = os.path.splitext(args.output)
+
+    match file_extension:
+        case '.xls' | '.xlsx':
+            results_df.to_excel(args.output, index=False)
+        case '.csv':
+            results_df.to_csv(args.output, index=False)
+        case _:
+            raise ValueError(f"Unsupported file extension: {file_extension}") 
+
+def process_file(file_path, baseline_shrink_factor, pulse_shrink_factor, plot, results_df=None, ):
+    print(f"Processing {file_path}")
+
+    a = LaserAblationData(file_path)
+    a.baseline_shrink_factor = baseline_shrink_factor
+    a.pulse_shrink_factor = pulse_shrink_factor
+
+    if plot:    
+        app = pg.mkQApp()
+        a.plot()
+        app.exec()
+
+    a.calculate_heights()
+
+    if results_df is None:
+        results_df = pd.DataFrame(columns=[''] + list(a.isotope_heights.keys()))
+
+    # store results
+    results_df.loc[len(results_df)] = [a.name] + list(a.isotope_heights.values())
+
+    return results_df
+
+
 if __name__ == "__main__":
-    # __debug_plots()
-    # __debug_loading()
-    __debug_calculate()
+    main()
