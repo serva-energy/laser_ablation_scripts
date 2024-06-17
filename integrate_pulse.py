@@ -152,7 +152,8 @@ def main():
         try:
             import pyqtgraph as pg
         except ImportError:
-            print("Please install `pyqtgraph` and `pyside6` modules to use the plot function.")
+            print("Please install `pyqtgraph` and `pyside6` modules to use the plot function:")
+            print("pip install pyqtgraph pyside6")
             args.plot = False
 
     # Check if input is a file or directory
