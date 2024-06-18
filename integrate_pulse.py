@@ -185,9 +185,10 @@ def main():
 
 
 def process_file(file_path, baseline_shrink_factor, pulse_shrink_factor, plot, results_df=None, ):
-    print(f"Processing `{file_path}`")
+    print(f"Processing `{file_path}`", end="")
 
     a = LaserAblationData(file_path)
+    print(f" ({a.name})")
     a.baseline_shrink_factor = baseline_shrink_factor
     a.pulse_shrink_factor = pulse_shrink_factor
 
