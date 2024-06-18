@@ -219,9 +219,9 @@ def main():
             else:
                 kwargs = { 'mode': 'w'}
             with pd.ExcelWriter(args.output, engine='openpyxl', **kwargs) as writer:
-                results_df.to_excel(writer, sheet_name="Results_bg_corrected", index=False, startrow=2)
+                results_df.to_excel(writer, sheet_name="Results_bg_corrected", index=False, startrow=2, float_format="%.0f")
         case '.csv':
-            results_df.to_csv(args.output, index=False)
+            results_df.to_csv(args.output, index=False, float_format="%.0f")
         case _:
             raise ValueError(f"Unsupported file extension: {file_extension}")
 
