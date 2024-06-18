@@ -62,13 +62,13 @@ class LaserAblationData():
         for col in df.columns[1:]:
             self.isotope_pulse_raw_data[col] = df[col].to_numpy(dtype='f8')
 
-    def plot(self):
-
+    def plot(self, plot_all=False, maximized=True):
         baseline_boundaries_indices, pulse_boundaries_indices = self.find_pulse_boundaries()
         baseline_boundaries = tuple(self.timestamps[baseline_boundaries_indices])
         pulse_boundaries = tuple(self.timestamps[pulse_boundaries_indices])
 
-        for iso in self.isotope_pulse_raw_data.keys():
+        isotopes = self.isotope_pulse_raw_data.keys() if plot_all else ['29Si']
+        for iso in isotopes:
             x_data = self.timestamps
             y_data = self.isotope_pulse_raw_data[iso]
 
@@ -76,28 +76,51 @@ class LaserAblationData():
             pw.addItem(pg.LinearRegionItem(values=baseline_boundaries, brush='#00ff0040', movable=False))
             pw.addItem(pg.LinearRegionItem(values=pulse_boundaries, brush='#0000ff40', movable=False))
 
-            pw.setWindowTitle(iso)
-            pw.showMaximized()
+            # plot seconds derivative
+            y_diff = np.diff(y_data)
+            pw.plot(x=x_data[:len(y_diff)], y=y_diff, pen='r')
+
+            pw.setWindowTitle(f"{self.name} - {iso}")
+            if maximized:
+                pw.showMaximized()
 
     def find_pulse_boundaries(self):
         baseline_boundaries_indices = []
         pulse_boundaries_indices = []
-        for isotope in self.isotope_pulse_raw_data.keys():
+        for isotope in ['29Si']:
             y_data = self.isotope_pulse_raw_data[isotope]
 
             # find pulse
-            peaks, props = find_peaks(y_data, prominence=0.8*y_data.max())
-            if len(peaks) == 1:
-                baseline_boundaries_indices.append(np.array([0, props['left_bases'][0]]))
-                pulse_boundaries_indices.append(np.array([props['left_bases'][0], props['right_bases'][0]]))
+            # peaks, props = find_peaks(y_data, prominence=0.5*y_data.max())            
+            # if len(peaks) == 1:
+            #     baseline_boundaries_indices.append(np.array([0, props['left_bases'][0]]))
+            #     pulse_boundaries_indices.append(np.array([props['left_bases'][0], props['right_bases'][0]]))
+            # else:
+            # TODO throw exception
 
-            # find the pulse using smoothed 1st derivative
-            y_diff = np.diff(np.convolve(y_data, np.ones(21) / 21, mode='same'))
-            baseline_boundaries_indices.append(np.array([0, np.argmax(y_diff)]))
-            pulse_boundaries_indices.append(np.array([np.argmax(y_diff), np.argmin(y_diff)]))
+            # find the pulse boundaries using 1st derivative
+            y_diff = np.diff(y_data)
+            peak_threshold = np.mean(np.abs(y_diff))
+
+            # find first "tall" peak from left
+            peaks, _ = find_peaks(y_diff, prominence=peak_threshold)
+            pulse_start = peaks[0]
+
+            # find first "tall" negative peak from right
+            y_diff = -y_diff
+            peaks, _ = find_peaks(y_diff, prominence=peak_threshold)
+            pulse_end = peaks[-1]
+            pulse_boundaries_indices.append(np.array([pulse_start, pulse_end]))
+            
+            # baseline is from start to recording to start of pulse
+            baseline_boundaries_indices.append(np.array([0, pulse_boundaries_indices[0][0]])) 
 
         baseline_boundaries_indices = np.array(baseline_boundaries_indices)
         pulse_boundaries_indices = np.array(pulse_boundaries_indices)
+
+        # shrink by 4 seconds at the start and at the end
+        pulse_boundaries_indices[0][0] += 12
+        pulse_boundaries_indices[0][1] -= 12
 
         baseline_boundaries_indices = np.mean(baseline_boundaries_indices, axis=0)
         pulse_boundaries_indices = np.mean(pulse_boundaries_indices, axis=0)
@@ -139,38 +162,49 @@ def main():
 
     parser.add_argument('--baseline_shrink_factor', type=float, default=0.1,
                         help='Baseline shrink factor (default: 0.1)')
-    parser.add_argument('--pulse_shrink_factor', type=float, default=0.3, help='Pulse shrink factor (default: 0.3)')
+    parser.add_argument('--pulse_shrink_factor', type=float, default=0.0, help='Pulse shrink factor (default: 0.0)')
     parser.add_argument('--plot', action='store_true', help='Visualize the output')
 
     args = parser.parse_args()
 
     results_df = None
 
-    if args.plot:
+    if args.plot or args.plotall:
         global pg
         pg = None
         try:
             import pyqtgraph as pg
+            app = pg.mkQApp()
+    
         except ImportError:
             print("Please install `pyqtgraph` and `pyside6` modules to use the plot function:")
             print("pip install pyqtgraph pyside6")
             args.plot = False
 
-    # Check if input is a file or directory
+    # Check if input is a file 
     if os.path.isfile(args.input):
-        results_df = process_file(args.input, args.baseline_shrink_factor, args.pulse_shrink_factor, args.plot)
+        results_df, abl = process_file(args.input, args.baseline_shrink_factor, args.pulse_shrink_factor, args.plot)
+        if args.plot:
+            abl.plot(plot_all=True, maximized=False)
+
+    # or directory
     elif os.path.isdir(args.input):
         for filename in sorted(os.listdir(args.input)):
             file_path = os.path.join(args.input, filename)
             if os.path.isfile(file_path):
-                results_df = process_file(file_path, args.baseline_shrink_factor,
+                results_df, abl = process_file(file_path, args.baseline_shrink_factor,
                                           args.pulse_shrink_factor, args.plot, results_df=results_df)
+                if args.plot:
+                    abl.plot()
     else:
         print(f"Error: {args.input} is not a valid file or directory.")
         sys.exit(1)
 
-    # Save results_df to output file based on the extension
+    # start app to show plots
+    if args.plot:
+        app.exec()
 
+    # Save results_df to output file based on the extension
     print(f"Saving results to `{args.output}`")
 
     _, file_extension = os.path.splitext(args.output)
@@ -191,12 +225,6 @@ def process_file(file_path, baseline_shrink_factor, pulse_shrink_factor, plot, r
     print(f" ({a.name})")
     a.baseline_shrink_factor = baseline_shrink_factor
     a.pulse_shrink_factor = pulse_shrink_factor
-
-    if plot:
-        app = pg.mkQApp()
-        a.plot()
-        app.exec()
-
     a.calculate_heights()
 
     if results_df is None:
@@ -205,7 +233,7 @@ def process_file(file_path, baseline_shrink_factor, pulse_shrink_factor, plot, r
     # store results
     results_df.loc[len(results_df)] = [a.name] + list(a.isotope_heights.values())
 
-    return results_df
+    return results_df, a
 
 
 if __name__ == "__main__":
