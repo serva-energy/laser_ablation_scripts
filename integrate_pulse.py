@@ -63,7 +63,10 @@ class LaserAblationData():
             self.isotope_pulse_raw_data[col] = df[col].to_numpy(dtype='f8')
 
     def plot(self, plot_all=False, maximized=True):
-        baseline_boundaries_indices, pulse_boundaries_indices = self.find_pulse_boundaries()
+        try:
+            baseline_boundaries_indices, pulse_boundaries_indices = self.find_pulse_boundaries()
+        except ValueError:
+            baseline_boundaries_indices = pulse_boundaries_indices = np.array([], dtype='i8')
         baseline_boundaries = tuple(self.timestamps[baseline_boundaries_indices])
         pulse_boundaries = tuple(self.timestamps[pulse_boundaries_indices])
 
@@ -73,8 +76,11 @@ class LaserAblationData():
             y_data = self.isotope_pulse_raw_data[iso]
 
             pw = pg.plot(x=x_data, y=y_data, symbol='o', pen='b')
-            pw.addItem(pg.LinearRegionItem(values=baseline_boundaries, brush='#00ff0040', movable=False))
-            pw.addItem(pg.LinearRegionItem(values=pulse_boundaries, brush='#0000ff40', movable=False))
+            if baseline_boundaries and pulse_boundaries:
+                pw.addItem(pg.LinearRegionItem(values=baseline_boundaries, brush='#00ff0040', movable=False))
+                pw.addItem(pg.LinearRegionItem(values=pulse_boundaries, brush='#0000ff40', movable=False))
+            else:
+                pw.setBackground('y')
 
             # plot seconds derivative
             y_diff = np.diff(y_data)
@@ -91,12 +97,9 @@ class LaserAblationData():
             y_data = self.isotope_pulse_raw_data[isotope]
 
             # find pulse
-            # peaks, props = find_peaks(y_data, prominence=0.5*y_data.max())            
-            # if len(peaks) == 1:
-            #     baseline_boundaries_indices.append(np.array([0, props['left_bases'][0]]))
-            #     pulse_boundaries_indices.append(np.array([props['left_bases'][0], props['right_bases'][0]]))
-            # else:
-            # TODO throw exception
+            peaks, _ = find_peaks(y_data, prominence=0.5*y_data.max(), distance=len(y_data)//3)
+            if len(peaks) != 1:
+                raise ValueError(f"{self.name} doesn't contain exactly one pulse.")
 
             # find the pulse boundaries using 1st derivative
             y_diff = np.diff(y_data)
@@ -169,7 +172,7 @@ def main():
 
     results_df = None
 
-    if args.plot or args.plotall:
+    if args.plot:
         global pg
         pg = None
         try:
@@ -225,13 +228,17 @@ def process_file(file_path, baseline_shrink_factor, pulse_shrink_factor, plot, r
     print(f" ({a.name})")
     a.baseline_shrink_factor = baseline_shrink_factor
     a.pulse_shrink_factor = pulse_shrink_factor
-    a.calculate_heights()
+    try:
+        a.calculate_heights()
+        if results_df is None:
+            results_df = pd.DataFrame(columns=[''] + list(a.isotope_heights.keys()))
 
-    if results_df is None:
-        results_df = pd.DataFrame(columns=[''] + list(a.isotope_heights.keys()))
+        # store results
+        results_df.loc[len(results_df)] = [a.name] + list(a.isotope_heights.values())
 
-    # store results
-    results_df.loc[len(results_df)] = [a.name] + list(a.isotope_heights.values())
+    except ValueError as e:        
+        print(f"{e}")
+
 
     return results_df, a
 
