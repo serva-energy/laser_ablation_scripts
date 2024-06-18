@@ -213,8 +213,13 @@ def main():
     _, file_extension = os.path.splitext(args.output)
 
     match file_extension:
-        case '.xls' | '.xlsx':
-            results_df.to_excel(args.output, index=False)
+        case '.xls' | '.xlsx':            
+            if os.path.exists(args.output):
+                kwargs = { 'mode': 'a', 'if_sheet_exists' : 'replace' }
+            else:
+                kwargs = { 'mode': 'w'}
+            with pd.ExcelWriter(args.output, engine='openpyxl', **kwargs) as writer:
+                results_df.to_excel(writer, sheet_name="Results_bg_corrected", index=False, startrow=2)
         case '.csv':
             results_df.to_csv(args.output, index=False)
         case _:
