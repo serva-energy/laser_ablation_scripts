@@ -20,6 +20,7 @@ class LaserAblationData():
 
         self.metadata = {}
         self.timestamps = None
+        self.dt = None
         self.isotope_pulse_raw_data = {}
         self.isotope_heights = {}
 
@@ -61,6 +62,8 @@ class LaserAblationData():
         self.timestamps = df['Time'].to_numpy()
         for col in df.columns[1:]:
             self.isotope_pulse_raw_data[col] = df[col].to_numpy(dtype='f8')
+
+        self.dt = np.median(np.diff(self.timestamps))
 
     def plot(self, plot_all=False, maximized=True):
         try:
@@ -121,9 +124,10 @@ class LaserAblationData():
         baseline_boundaries_indices = np.array(baseline_boundaries_indices)
         pulse_boundaries_indices = np.array(pulse_boundaries_indices)
 
-        # shrink by 4 seconds at the start and at the end
-        pulse_boundaries_indices[0][0] += 12
-        pulse_boundaries_indices[0][1] -= 12
+        # shrink by 4 seconds at the start and at the end        
+        four_sec_to_samples = np.ceil(4/self.dt)
+        pulse_boundaries_indices[0][0] += four_sec_to_samples
+        pulse_boundaries_indices[0][1] -= four_sec_to_samples
 
         baseline_boundaries_indices = np.mean(baseline_boundaries_indices, axis=0)
         pulse_boundaries_indices = np.mean(pulse_boundaries_indices, axis=0)
