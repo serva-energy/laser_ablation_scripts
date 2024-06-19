@@ -13,6 +13,7 @@ class LaserAblationData():
 
     baseline_shrink_factor = 0.1
     pulse_shrink_factor = 0.3
+    pulse_shrink_seconds = 4.0
 
     def __init__(self, filename=None) -> None:
         self.name = None
@@ -124,10 +125,10 @@ class LaserAblationData():
         baseline_boundaries_indices = np.array(baseline_boundaries_indices)
         pulse_boundaries_indices = np.array(pulse_boundaries_indices)
 
-        # shrink by 4 seconds at the start and at the end        
-        four_sec_to_samples = np.ceil(4/self.dt)
-        pulse_boundaries_indices[0][0] += four_sec_to_samples
-        pulse_boundaries_indices[0][1] -= four_sec_to_samples
+        # shrink by `pulse_shrink_seconds` seconds at the start and at the end        
+        sec_to_samples = np.ceil(self.pulse_shrink_seconds/self.dt)
+        pulse_boundaries_indices[0][0] += sec_to_samples
+        pulse_boundaries_indices[0][1] -= sec_to_samples
 
         baseline_boundaries_indices = np.mean(baseline_boundaries_indices, axis=0)
         pulse_boundaries_indices = np.mean(pulse_boundaries_indices, axis=0)
@@ -170,6 +171,7 @@ def main():
     parser.add_argument('--baseline_shrink_factor', type=float, default=0.1,
                         help='Baseline shrink factor (default: 0.1)')
     parser.add_argument('--pulse_shrink_factor', type=float, default=0.0, help='Pulse shrink factor (default: 0.0)')
+    parser.add_argument('--pulse_shrink_seconds', type=float, default=4.0, help='Pulse shrink (on either end) in seconds (default: 4.0)')
     parser.add_argument('--plot', action='store_true', help='Visualize the output')
 
     args = parser.parse_args()
@@ -190,7 +192,7 @@ def main():
 
     # Check if input is a file 
     if os.path.isfile(args.input):
-        results_df, abl = process_file(args.input, args.baseline_shrink_factor, args.pulse_shrink_factor, args.plot)
+        results_df, abl = process_file(args.input, **vars(args))
         if args.plot:
             abl.plot(plot_all=True, maximized=False)
 
@@ -199,8 +201,7 @@ def main():
         for filename in sorted(os.listdir(args.input)):
             file_path = os.path.join(args.input, filename)
             if os.path.isfile(file_path):
-                results_df, abl = process_file(file_path, args.baseline_shrink_factor,
-                                          args.pulse_shrink_factor, args.plot, results_df=results_df)
+                results_df, abl = process_file(file_path, results_df=results_df, **vars(args))
                 if args.plot:
                     abl.plot()
     else:
@@ -230,13 +231,14 @@ def main():
             raise ValueError(f"Unsupported file extension: {file_extension}")
 
 
-def process_file(file_path, baseline_shrink_factor, pulse_shrink_factor, plot, results_df=None, ):
+def process_file(file_path, baseline_shrink_factor, pulse_shrink_factor, pulse_shrink_seconds, plot, results_df=None, **kwargs):
     print(f"Processing `{file_path}`", end="")
 
     a = LaserAblationData(file_path)
     print(f" ({a.name})")
     a.baseline_shrink_factor = baseline_shrink_factor
     a.pulse_shrink_factor = pulse_shrink_factor
+    a.pulse_shrink_seconds = pulse_shrink_seconds
     try:
         a.calculate_heights()
         if results_df is None:
