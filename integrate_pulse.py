@@ -103,7 +103,7 @@ class LaserAblationData():
             # find pulse
             peaks, _ = find_peaks(y_data, prominence=0.5*y_data.max(), distance=len(y_data)//3)
             if len(peaks) != 1:
-                raise ValueError(f"{self.name} doesn't contain exactly one pulse.")
+                raise ValueError(f"{self.name} {isotope} doesn't contain exactly one pulse.")
 
             # find the pulse boundaries using 1st derivative
             y_diff = np.diff(y_data)
@@ -248,6 +248,7 @@ def process_file(file_path, baseline_shrink_factor, pulse_shrink_factor, pulse_s
         results_df.loc[len(results_df)] = [a.name] + list(a.isotope_heights.values())
 
     except ValueError as e:        
+        results_df.loc[len(results_df)] = [a.name] + [""] * len(a.isotope_pulse_raw_data)
         print(f"{e}")
 
 
