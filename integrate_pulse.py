@@ -153,11 +153,17 @@ class LaserAblationData():
         return np.array([int(new_start), int(new_end)])
 
     def calculate_heights(self):
+        def to_range(endpoints):
+            return np.arange(endpoints[0], endpoints[1] + 1)
+        
         baseline_boundaries_indices, pulse_boundaries_indices = self.find_pulse_boundaries()
 
+        baseline_indices = to_range(baseline_boundaries_indices)
+        pulse_indices = to_range(pulse_boundaries_indices)
+
         for isotope, y_data in self.isotope_pulse_raw_data.items():
-            val = np.mean(y_data[pulse_boundaries_indices])
-            base = np.mean(y_data[baseline_boundaries_indices])
+            val = np.mean(y_data[pulse_indices])
+            base = np.mean(y_data[baseline_indices])
             val -= base
             self.isotope_heights[isotope] = val
 
