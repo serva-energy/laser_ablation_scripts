@@ -212,6 +212,10 @@ def main():
     if args.plot:
         app.exec()
 
+    if results_df is None:
+        print("No results were produced!")
+        sys.exit(1)
+    
     # Save results_df to output file based on the extension
     print(f"Saving results to `{args.output}`")
 
