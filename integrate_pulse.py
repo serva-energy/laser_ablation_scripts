@@ -108,10 +108,14 @@ class LaserAblationData():
                 pw.resize(1920,1080)    
                 pw.show()
                 pw.hide()
-                fname = f"{self.name}-{iso}.png"
+                fname = f"{self.name}-{iso}.svg"
                 print(f"Saving \"{fname}\".")                
-                # exporter = pg.exporters.SVGExporter(pw.getPlotItem())                
-                exporter = pg.exporters.ImageExporter(pw.getPlotItem())
+                if fname.endswith('.svg'):
+                    exporter = pg.exporters.SVGExporter(pw.getPlotItem())                
+                elif fname.endswith('.png'):
+                    exporter = pg.exporters.ImageExporter(pw.getPlotItem())
+                else:
+                    raise RuntimeError(f"Unsupported format: {fname}")
                 exporter.export(fname)
 
 
