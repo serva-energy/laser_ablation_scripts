@@ -128,11 +128,6 @@ class LaserAblationData():
         for isotope in ['29Si']:
             y_data = self.isotope_pulse_raw_data[isotope]
 
-            # find pulse
-            peaks, _ = find_peaks(y_data, prominence=0.5*y_data.max(), distance=len(y_data)//3)
-            if len(peaks) != 1:
-                raise ValueError(f"{self.name} {isotope} doesn't contain exactly one pulse.")
-
             # METHOD 1
             # find the pulse boundaries using 1st derivative
             y_diff = np.diff(y_data)
@@ -156,6 +151,11 @@ class LaserAblationData():
             pulse_end = pulse_indices.max()            
             pulse_boundaries_indices.append(np.array([pulse_start, pulse_end]))
             
+            # check if there is more than one pulse - both methods have to agree
+            peaks, _ = find_peaks(y_data, prominence=0.5*y_data.max(), distance=len(y_data)//3)
+            if (np.diff(pulse_indices).max() > 1) and (len(peaks) != 1):
+                raise ValueError(f"{self.name} {isotope} doesn't contain exactly one pulse.")
+
             # check if methods disagree
             std = np.std(pulse_boundaries_indices, axis=0,)
             if np.sum(std) > 10:
