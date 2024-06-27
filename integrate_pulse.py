@@ -8,7 +8,6 @@ from scipy.signal import find_peaks
 
 import argparse
 
-
 class LaserAblationData():
 
     baseline_shrink_factor = 0.1
@@ -164,8 +163,10 @@ class LaserAblationData():
         for isotope, y_data in self.isotope_pulse_raw_data.items():
             val = np.mean(y_data[pulse_indices])
             base = np.mean(y_data[baseline_indices])
+            if base>val:
+                print(f"{self.name} {isotope} pulse ({val}) is less than baseline ({base}), setting to 0", file=sys.stderr)
             val -= base
-            self.isotope_heights[isotope] = val
+            self.isotope_heights[isotope] = np.clip(val, 0, np.inf)
 
 
 def main():
