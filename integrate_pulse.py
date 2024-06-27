@@ -80,6 +80,7 @@ class LaserAblationData():
             y_data = self.isotope_pulse_raw_data[iso]
 
             pw = pg.plot(x=x_data, y=y_data, symbol='o', pen='b')
+            pw.setBackground('w')
             if baseline_boundaries and pulse_boundaries:
                 pw.addItem(pg.LinearRegionItem(values=baseline_boundaries, brush='#00ff0040', movable=False))
                 pw.addItem(pg.LinearRegionItem(values=pulse_boundaries, brush='#0000ff40', movable=False))
@@ -89,6 +90,9 @@ class LaserAblationData():
             # plot seconds derivative
             y_diff = np.diff(y_data)
             pw.plot(x=x_data[:len(y_diff)], y=y_diff, pen='r')
+
+            # plot threshold            
+            pw.addItem(pg.InfiniteLine(angle=0, pos=np.mean(y_data), movable=False))
 
             pw.setWindowTitle(f"{self.name} - {iso}")
             if maximized:
@@ -105,6 +109,7 @@ class LaserAblationData():
             if len(peaks) != 1:
                 raise ValueError(f"{self.name} {isotope} doesn't contain exactly one pulse.")
 
+            # METHOD 1
             # find the pulse boundaries using 1st derivative
             y_diff = np.diff(y_data)
             peak_threshold = np.mean(np.abs(y_diff))
@@ -118,7 +123,29 @@ class LaserAblationData():
             peaks, _ = find_peaks(y_diff, prominence=peak_threshold)
             pulse_end = peaks[-1]
             pulse_boundaries_indices.append(np.array([pulse_start, pulse_end]))
+
+            # METHOD 2
+            # find pulse boundaries using mean value as threshold
+            threshold = np.mean(y_data)
+            pulse_indices = np.where(y_data>threshold)[0]
+            pulse_start = pulse_indices.min()
+            pulse_end = pulse_indices.max()            
+            pulse_boundaries_indices.append(np.array([pulse_start, pulse_end]))
             
+            # check if methods disagree
+            std = np.std(pulse_boundaries_indices, axis=0,)
+            if np.sum(std) > 10:
+                # methods disagree
+                print(f"Warning: {self.name} {isotope} methods disagree {pulse_boundaries_indices} stddev={np.std(pulse_boundaries_indices, axis=0,)}. ", end="", file=sys.stderr)
+                diffs = [arr[1]-arr[0] for arr in pulse_boundaries_indices]
+                
+                # pick result with narrower pulse                
+                pulse_boundaries_indices = [pulse_boundaries_indices[np.argmin(diffs)]]
+                print(f"Picking shorter estimate ({pulse_boundaries_indices})", file=sys.stderr)
+            else:                
+                # methods agree, use mean of results
+                pulse_boundaries_indices = [np.mean(pulse_boundaries_indices, axis=0, dtype='i4')]
+
             # baseline is from start to recording to start of pulse
             baseline_boundaries_indices.append(np.array([0, pulse_boundaries_indices[0][0]])) 
 
