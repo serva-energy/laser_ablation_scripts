@@ -161,8 +161,8 @@ class LaserAblationData():
         pulse_indices = to_range(pulse_boundaries_indices)
 
         for isotope, y_data in self.isotope_pulse_raw_data.items():
-            val = np.mean(y_data[pulse_indices])
-            base = np.mean(y_data[baseline_indices])
+            val = np.median(y_data[pulse_indices])
+            base = np.median(y_data[baseline_indices])
             if base>val:
                 print(f"{self.name} {isotope} pulse ({val}) is less than baseline ({base}), setting to 0", file=sys.stderr)
             val -= base
