@@ -25,6 +25,8 @@ class LaserAblationData():
         self.isotope_pulse_raw_data = {}
         self.isotope_heights = {}
 
+        self._plots = None
+
         if filename:
             self.load_from_file(filename)
 
@@ -66,7 +68,7 @@ class LaserAblationData():
 
         self.dt = np.median(np.diff(self.timestamps))
 
-    def plot(self, plot_all=False, maximized=True):
+    def plot(self, plot_all=False, maximized=True, show=True, export_plots=True):
         try:
             baseline_boundaries_indices, pulse_boundaries_indices = self.find_pulse_boundaries()
         except ValueError:
@@ -75,11 +77,16 @@ class LaserAblationData():
         pulse_boundaries = tuple(self.timestamps[pulse_boundaries_indices])
 
         isotopes = self.isotope_pulse_raw_data.keys() if plot_all else ['29Si']
+
+        self._plots = []        
+
         for iso in isotopes:
             x_data = self.timestamps
             y_data = self.isotope_pulse_raw_data[iso]
 
-            pw = pg.plot(x=x_data, y=y_data, symbol='o', pen='b')
+            pw = pg.PlotWidget()                    
+            self._plots.append(pw)
+            pw.plot(x=x_data, y=y_data, symbol='o', pen='b')
             pw.setBackground('w')
             if baseline_boundaries and pulse_boundaries:
                 pw.addItem(pg.LinearRegionItem(values=baseline_boundaries, brush='#00ff0040', movable=False))
@@ -95,8 +102,25 @@ class LaserAblationData():
             pw.addItem(pg.InfiniteLine(angle=0, pos=np.mean(y_data), movable=False))
 
             pw.setWindowTitle(f"{self.name} - {iso}")
-            if maximized:
-                pw.showMaximized()
+            pw.setLabel('bottom', 'Time', 's')
+            pw.setLabel('left', 'Counts')
+            if show:
+                if maximized:
+                    pw.showMaximized()
+                else:
+                    pw.show()
+
+            if export_plots:
+                pw.resize(1920,1080)    
+                pw.show()
+                pw.hide()
+                fname = f"{self.name}-{iso}.png"
+                print(f"Saving \"{fname}\".")                
+                # exporter = pg.exporters.SVGExporter(pw.getPlotItem())                
+                exporter = pg.exporters.ImageExporter(pw.getPlotItem())
+                exporter.export(fname)
+
+
 
     def find_pulse_boundaries(self):
         baseline_boundaries_indices = []
@@ -229,8 +253,12 @@ def main():
     parser.add_argument('--pulse_shrink_seconds', type=float, default=4.0, help='Pulse shrink (on either end) in seconds (default: 4.0)')
     parser.add_argument('--minimum_pulse_length', type=float, default=0.0, help="Minimum pulse length in seconds. Expands pulses shorter than this value.")
     parser.add_argument('--plot', action='store_true', help='Visualize the output')
+    parser.add_argument('--export-plots', action='store_true', help='Save the plots to files')
 
     args = parser.parse_args()
+
+    if args.export_plots:
+        args.plot = True
 
     results_df = None
 
@@ -239,6 +267,7 @@ def main():
         pg = None
         try:
             import pyqtgraph as pg
+            import pyqtgraph.exporters
             app = pg.mkQApp()
     
         except ImportError:
@@ -250,7 +279,7 @@ def main():
     if os.path.isfile(args.input):
         results_df, abl = process_file(args.input, **vars(args))
         if args.plot:
-            abl.plot(plot_all=True, maximized=False)
+            abl.plot(plot_all=True, maximized=False, show=not args.export_plots, export_plots=args.export_plots)
 
     # or directory
     elif os.path.isdir(args.input):
@@ -259,13 +288,13 @@ def main():
             if os.path.isfile(file_path):
                 results_df, abl = process_file(file_path, results_df=results_df, **vars(args))
                 if args.plot:
-                    abl.plot()
+                    abl.plot(show=not args.export_plots, export_plots=args.export_plots)
     else:
         print(f"Error: {args.input} is not a valid file or directory.")
         sys.exit(1)
 
     # start app to show plots
-    if args.plot:
+    if args.plot and not args.export_plots:
         app.exec()
 
     if results_df is None:
