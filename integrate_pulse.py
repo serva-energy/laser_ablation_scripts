@@ -25,8 +25,6 @@ class LaserAblationData():
         self.isotope_pulse_raw_data = {}
         self.isotope_heights = {}
 
-        self._plots = None
-
         if filename:
             self.load_from_file(filename)
 
@@ -78,15 +76,11 @@ class LaserAblationData():
 
         isotopes = self.isotope_pulse_raw_data.keys() if plot_all else ['29Si']
 
-        self._plots = []        
-
         for iso in isotopes:
             x_data = self.timestamps
             y_data = self.isotope_pulse_raw_data[iso]
 
-            pw = pg.PlotWidget()                    
-            self._plots.append(pw)
-            pw.plot(x=x_data, y=y_data, symbol='o', pen='b')
+            pw = pg.plot(x=x_data, y=y_data, symbol='o', pen='b')
             pw.setBackground('w')
             if baseline_boundaries and pulse_boundaries:
                 pw.addItem(pg.LinearRegionItem(values=baseline_boundaries, brush='#00ff0040', movable=False))
