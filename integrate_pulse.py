@@ -13,6 +13,7 @@ class LaserAblationData():
     baseline_shrink_factor = 0.1
     pulse_shrink_factor = 0.3
     pulse_shrink_seconds = 4.0
+    minimum_pulse_length_seconds = 0.0
 
     def __init__(self, filename=None) -> None:
         self.name = None
@@ -135,6 +136,20 @@ class LaserAblationData():
         baseline_boundaries_indices = self.shrink_range(baseline_boundaries_indices, self.baseline_shrink_factor)
         pulse_boundaries_indices = self.shrink_range(pulse_boundaries_indices, self.pulse_shrink_factor)
 
+        # check and enforce minimum pulse length
+        if self.minimum_pulse_length_seconds:
+            pulse_len_s = (pulse_boundaries_indices[1] - pulse_boundaries_indices[0]) * self.dt
+            missing = (self.minimum_pulse_length_seconds - pulse_len_s) / self.dt
+            # if pulse is too short expand it
+            if missing > 0.0:
+                print(f"Warning: {self.name} {isotope} pulse length ({pulse_len_s:.3f}s) is too short, expanding to {self.minimum_pulse_length_seconds:.3f}s")
+                pulse_boundaries_indices[0] -= (missing//2)
+                pulse_boundaries_indices[1] += (missing//2)
+        
+        # check for region intersection
+        if self.check_intersection(baseline_boundaries_indices, pulse_boundaries_indices):
+            raise ValueError("Baseline and pulse regions intersect!")
+
         return baseline_boundaries_indices, pulse_boundaries_indices
 
     @staticmethod
@@ -151,6 +166,12 @@ class LaserAblationData():
 
         return np.array([int(new_start), int(new_end)])
 
+    @staticmethod
+    def check_intersection(region1, region2):
+        # region1 and region2 should be numpy arrays with two elements [start, end]
+        return np.minimum(region1[1], region2[1]) >= np.maximum(region1[0], region2[0])
+
+
     def calculate_heights(self):
         def to_range(endpoints):
             return np.arange(endpoints[0], endpoints[1] + 1)
@@ -164,7 +185,7 @@ class LaserAblationData():
             val = np.median(y_data[pulse_indices])
             base = np.median(y_data[baseline_indices])
             if base>val:
-                print(f"{self.name} {isotope} pulse ({val}) is less than baseline ({base}), setting to 0", file=sys.stderr)
+                print(f"Warning:{self.name} {isotope} pulse ({val}) is less than baseline ({base}), setting to 0", file=sys.stderr)
             val -= base
             self.isotope_heights[isotope] = np.clip(val, 0, np.inf)
 
@@ -179,6 +200,7 @@ def main():
                         help='Baseline shrink factor (default: 0.1)')
     parser.add_argument('--pulse_shrink_factor', type=float, default=0.0, help='Pulse shrink factor (default: 0.0)')
     parser.add_argument('--pulse_shrink_seconds', type=float, default=4.0, help='Pulse shrink (on either end) in seconds (default: 4.0)')
+    parser.add_argument('--minimum_pulse_length', type=float, default=0.0, help="Minimum pulse length in seconds. Expands pulses shorter than this value.")
     parser.add_argument('--plot', action='store_true', help='Visualize the output')
 
     args = parser.parse_args()
@@ -242,7 +264,7 @@ def main():
             raise ValueError(f"Unsupported file extension: {file_extension}")
 
 
-def process_file(file_path, baseline_shrink_factor, pulse_shrink_factor, pulse_shrink_seconds, plot, results_df=None, **kwargs):
+def process_file(file_path, baseline_shrink_factor, pulse_shrink_factor, pulse_shrink_seconds, plot, results_df=None, minimum_pulse_length=0.0, **kwargs):
     print(f"Processing `{file_path}`", end="")
 
     a = LaserAblationData(file_path)
@@ -250,6 +272,7 @@ def process_file(file_path, baseline_shrink_factor, pulse_shrink_factor, pulse_s
     a.baseline_shrink_factor = baseline_shrink_factor
     a.pulse_shrink_factor = pulse_shrink_factor
     a.pulse_shrink_seconds = pulse_shrink_seconds
+    a.minimum_pulse_length_seconds = minimum_pulse_length
     try:
         a.calculate_heights()
         if results_df is None:
