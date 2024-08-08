@@ -47,3 +47,12 @@
     ```cmd
     pip install pyqtgraph pyside6
     ```
+## License
+
+This project is licensed under a dual-license model:
+
+- **GNU General Public License v2.0 (GPLv2):** You may redistribute and/or modify this software under the terms of the GPLv2 as published by the Free Software Foundation. See the `LICENSE` file for details.
+
+- **Commercial License:** For those who prefer to use this software under a closed-source or commercial license, a separate license is available. Please contact [Serva Energy](mailto:info@servaenergy.com) for more details.
+
+By using this software, you agree to the terms and conditions of either the GPLv2 or the commercial license.
