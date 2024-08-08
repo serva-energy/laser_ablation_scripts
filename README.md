@@ -6,7 +6,7 @@
 
 1. Open the repository directory and create a virtual environment for Python:
     ```bash
-    cd ASU_Montero
+    cd laser_ablation_scripts
     python3 -m venv venv
     ```
 
@@ -29,7 +29,7 @@
 
 1. Open the repository directory and create a virtual environment for Python:
     ```cmd
-    cd ASU_Montero
+    cd laser_ablation_scripts
     python -m venv venv
     ```
 
